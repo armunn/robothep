@@ -13,12 +13,10 @@ option2 = st.selectbox("What imagery would you like to use?", ["A forest", "The 
 
 option3 = st.selectbox("How would you like it to end?", ["Sunrise", "Tide", "Dawn chorus"])
 
-progress = st.text("")
-
-script = st.text("")
-
 if st.button("Generate"):
-    mediation = generate_mediation(text_input, option1, option2, option3, progress, script)
+    progress = st.progress(0, "")
+    mediation = generate_mediation(text_input, option1, option2, option3, progress)
+    progress.progress(100, "Done!")
     audio_file = open(mediation, "rb")
     audio_bytes = audio_file.read()
-    st.audio(audio_bytes, format="audio/mp3")
+    st.audio(audio_bytes, format="audio/mpeg")

@@ -3,6 +3,7 @@ import io
 from pydub import AudioSegment
 import tempfile
 import streamlit as st
+from concurrent.futures import ThreadPoolExecutor
 
 RELAX_MAP = {
     "Breath": "a breathing exercise, focusing on an area of breath",
@@ -24,13 +25,12 @@ ENDING_MAP = {
 
 client = OpenAI()
 
-def generate_mediation(outcome: str, relaxation: str, imagery: str, ending: str, progress: st._DeltaGenerator, script_display: st._DeltaGenerator):
-    progress.text("Generating script...")
+def generate_mediation(outcome: str, relaxation: str, imagery: str, ending: str, progress: st._DeltaGenerator):
+    progress.progress(0, "Generating script...")
     script = generate_script(outcome, relaxation, imagery, ending)
-    script_display.text(f"Received script:\n\n {script}")
-    progress.text("Generating speech...")
-    audio_segment = generate_speech(script)
-    progress.text("Merging with background...")
+    progress.progress(25, "Generating speech...")
+    audio_segment = generate_speech(script, progress)
+    progress.progress(75, "Merging with background...")
     return merge_with_background(audio_segment, "background.mp3")
 
 def generate_script(outcome: str, relaxation: str, imagery: str, ending: str):
@@ -58,18 +58,26 @@ Please do not include title or section headings.
     )
     return response.choices[0].message.content
 
-def generate_speech(script: str):
+def generate_speech(script: str, progress: st._DeltaGenerator):
     paragraphs = script.split("\n\n")  # Split script into paragraphs
 
     responses = []
-    for paragraph in paragraphs:
+    def generate_audio(paragraph):
         response = client.audio.speech.create(
             model="tts-1",
             speed=0.65,
             voice="nova",
             input=paragraph,
         )
-        responses.append(response.content)
+        return response.content
+
+    with ThreadPoolExecutor() as executor:
+        futures = [executor.submit(generate_audio, paragraph) for paragraph in paragraphs]
+        for future in futures:
+            responses.append(future.result())
+            completed = ((len(responses) / len(paragraphs)) / 2) + 0.25
+            progress.progress(completed, f"Generating speech {len(responses)}/{len(paragraphs)}...")
+
 
     # Concatenate the responses with 5 seconds of silence between each
     final_audio = AudioSegment.silent(duration=5000)
