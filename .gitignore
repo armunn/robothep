@@ -6,4 +6,4 @@
 
 /.eggs
 .vscode/launch.json
-
+.streamlit/secrets.toml

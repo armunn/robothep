@@ -3,10 +3,13 @@ import io
 from pydub import AudioSegment
 import tempfile
 import streamlit as st
+import boto3
+from contextlib import closing
 from concurrent.futures import ThreadPoolExecutor
 from scripts import get_prompts
 
 client = OpenAI()
+polly_client = boto3.client('polly')
 
 def generate_mediation(challenge: str, impact: str, summary: str, progress: st._DeltaGenerator):
     progress.progress(0, "Generating script...")
@@ -39,21 +42,52 @@ def generate_script(challenge: str, impact: str, summary: str, progress: st._Del
 
     return "".join(full_script)
 
+
+def generate_audio_openai(paragraph, speed=65):
+    response = client.audio.speech.create(
+        model="tts-1",
+        speed=speed / 100,
+        voice="nova",
+        input=paragraph,
+    )
+    return response.content
+
+def generate_audio_aws(paragraph, speed=65):
+    response = polly_client.synthesize_speech(
+                TextType="ssml",
+                Text=f'<speak><prosody rate="{speed}%">{paragraph}</prosody></speak>',
+                OutputFormat='mp3',
+                VoiceId='Emma'
+            )
+    return response
+
 def generate_speech(script: str, progress: st._DeltaGenerator):
     paragraphs = script.split("PAUSE")  # Split script into paragraphs
 
     responses = []
-    def generate_audio(paragraph):
-        response = client.audio.speech.create(
-            model="tts-1",
-            speed=0.65,
-            voice="nova",
-            input=paragraph,
-        )
-        return response.content
+    def generate_audio(paragraph, speed):
+        response = polly_client.synthesize_speech(
+                    TextType="ssml",
+                    Text=f'<speak><prosody rate="{speed}%">{paragraph}</prosody></speak>',
+                    OutputFormat='mp3',
+                    VoiceId='Emma'
+                )
+        stream = response['AudioStream']
+        with closing(stream) as audio_stream:
+            return audio_stream.read()
 
     with ThreadPoolExecutor() as executor:
-        futures = [executor.submit(generate_audio, paragraph) for paragraph in paragraphs]
+        speeds = []
+        current_speed = 90
+        for i in range(len(paragraphs)):
+            speeds.append(current_speed)
+            if i < len(paragraphs) - 3:
+                if current_speed > 65:
+                    current_speed -= 5
+            else:
+                current_speed += 10
+
+        futures = [executor.submit(generate_audio, paragraph, speed) for paragraph, speed in zip(paragraphs, speeds)]
         for future in futures:
             responses.append(future.result())
             completed = ((len(responses) / len(paragraphs)) / 2) + 0.25
@@ -72,8 +106,10 @@ def generate_speech(script: str, progress: st._DeltaGenerator):
 
 def merge_with_background(audio_segment, background: str):
     background_segment = AudioSegment.from_file(background) - 10
+    background_segment = background_segment.fade_in(5000)
     merged_segment = background_segment.overlay(audio_segment)
     merged_segment = merged_segment[:len(audio_segment)]
+    merged_segment = merged_segment.fade_out(5000)
 
     with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp_file:
         tmp_filename = tmp_file.name

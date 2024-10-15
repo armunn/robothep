@@ -58,21 +58,24 @@ Please do not include title or section headings.
     )
     return response.choices[0].message.content
 
+
+def generate_audio_openai(paragraph, speed=65):
+    response = client.audio.speech.create(
+        model="tts-1",
+        speed=speed / 100,
+        voice="nova",
+        input=paragraph,
+    )
+    return response.content
+
+
 def generate_speech(script: str, progress: st._DeltaGenerator):
     paragraphs = script.split("\n\n")  # Split script into paragraphs
 
     responses = []
-    def generate_audio(paragraph):
-        response = client.audio.speech.create(
-            model="tts-1",
-            speed=0.65,
-            voice="nova",
-            input=paragraph,
-        )
-        return response.content
 
     with ThreadPoolExecutor() as executor:
-        futures = [executor.submit(generate_audio, paragraph) for paragraph in paragraphs]
+        futures = [executor.submit(generate_audio_openai, paragraph) for paragraph in paragraphs]
         for future in futures:
             responses.append(future.result())
             completed = ((len(responses) / len(paragraphs)) / 2) + 0.25
@@ -91,8 +94,10 @@ def generate_speech(script: str, progress: st._DeltaGenerator):
 
 def merge_with_background(audio_segment, background: str):
     background_segment = AudioSegment.from_file(background) - 10
+    background_segment = background_segment.fade_in(5000)
     merged_segment = background_segment.overlay(audio_segment)
     merged_segment = merged_segment[:len(audio_segment)]
+    merged_segment = merged_segment.fade_out(5000)
 
     with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp_file:
         tmp_filename = tmp_file.name
