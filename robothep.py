@@ -12,6 +12,11 @@ st.markdown(
     .stApp {
         background-color: #191970;
     }
+
+    [data-testid="stHeader"] {
+        background-color: #191970;
+    }
+
     /* Pale blue sidebar */
     .css-1d391kg {
         background-color: #add8e6;
@@ -20,6 +25,11 @@ st.markdown(
     .stApp {
         color: white;
     }
+
+    h1 {
+        color: white;
+    }
+    
     /* Dark gray text for the sidebar */
     .css-1d391kg, .css-1lcbmhc {
         color: #333333;

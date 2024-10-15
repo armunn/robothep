@@ -1,0 +1,15 @@
+Add chat interface - Done
+Get chat summary for intentions
+
+Create therapy structure templates
+Load therapy templates
+
+Create script
+
+Move to AWS speech generation
+
+Update music
+
+Add landing page
+Add login
+Add stripe
